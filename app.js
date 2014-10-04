@@ -1,55 +1,35 @@
-"use strict";
-
 var express = require('express');
-var request = require('request');
-var cheerio = require('cheerio');
-var route   = express.Router();
-var app     = express();
-var port    = process.env.PORT || 8000;
-var Iconv   = require('iconv').Iconv;
+var load    = require('express-load');
+var path    = require('path');
+var favicon = require('serve-favicon');
+var logger  = require('morgan');
+var cookieParser = require('cookie-parser');
+var bodyParser = require('body-parser');
+var error = require(__dirname + '/middlewares/error');
 
-route.get('/cep/:cep', function (req, res) {
-  request(
-    { method: 'POST'
-    , uri: 'http://m.correios.com.br/movel/buscaCepConfirma.do'
-    , form: {
-        cepEntrada: req.param('cep'),
-        tipoCep:'',
-        cepTemp:'',
-        metodo:'buscarCep'
-      }
-    }
-  , function (error, response, body) {
-      if(response.statusCode == 200){
-            var $ = cheerio.load(body);
-            var responseCorreios = [];
+var routes = require('./routes/index');
+var users = require('./routes/users');
+var cep = require('./routes/cep');
 
-            $('.respostadestaque').each(function(i, elem) {
-              var iconv = new Iconv('ISO-8859-1', 'utf8');
-              responseCorreios[i] = iconv.convert($(this).text());
-            });
+var app = express();
 
-            var localidade = responseCorreios[2].toString('utf8').trim().split("/");
+// view engine setup
+app.set('views', path.join(__dirname, 'views'));
+app.set('view engine', 'jade');
 
-            var correioJson = {
-              "Logradouro": responseCorreios[0].toString('utf8').trim(),
-              "Bairro": responseCorreios[1].toString('utf8').trim(),
-              "Localidade": localidade[0].trim(),
-              "Estado": localidade[1].trim(),
-              "CEP": responseCorreios[3].toString('utf8').trim()
-            }
+// uncomment after placing your favicon in /public
+//app.use(favicon(__dirname + '/public/favicon.ico'));
+app.use(logger('dev'));
+app.use(bodyParser.json());
+app.use(bodyParser.urlencoded({ extended: false }));
+app.use(cookieParser());
+app.use(express.static(path.join(__dirname, 'public')));
 
-            res.setHeader('Content-Type', 'application/json');
-            res.send(JSON.stringify(correioJson));
+app.use('/', routes);
+app.use('/users', users);
+app.use('/cep', cep);
 
-      } else {
-        console.log('error: '+ response.statusCode)
-      }
-    }
-  )
-});
+app.use(error.notFound);
+app.use(error.serverError);
 
-app.use('/', route);
-app.listen(port);
-
-console.log('Your server goes on localhost:' + port);
+module.exports = app;
